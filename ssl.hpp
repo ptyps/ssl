@@ -6,7 +6,7 @@
 #include "debug.hpp"
 
 namespace ssl {
-  static debugging::Debug* debug = new debugging::Debug("ssl", debugging::colors::cyan);
+  static debugging::Debug* debug = new debugging::Debug("ssl", debugging::colors::CYAN);
 
   void enableDebug() {
     debug->enable();
@@ -60,77 +60,82 @@ namespace ssl {
     initalized = !0;
   }
 
-  SSL* wrapOutgoing(uint id) {
-    init();
+  namespace wrap {
+    std::pair<SSL_CTX*, SSL*> server(uint id) {
+      init();
 
-    log("creating socket ssl client and method");
+      log("creating server socket ssl");
 
-    auto method = TLS_client_method();
-    auto context = SSL_CTX_new(method);
-    auto ssl = SSL_new(context);
+      auto method = TLS_server_method();
+      auto context = SSL_CTX_new(method);
+      auto ssl = SSL_new(context);
 
-    if (!ssl)
-      throw exception("unable to create SSL");
+      if (!ssl)
+        throw exception("unable to create ssl for server");
 
-    log("socket id set to %i", id);
+      log("server ssl id set to %i", id);
 
-    auto i = SSL_set_fd(ssl, id);
+      SSL_set_fd(ssl, id);
 
-    if (i == 0)
-      throw exception("unable to set id");
+      return {
+        context,
+        ssl
+      };
+    }
 
-    return ssl;
+    SSL* out(uint id) {
+      init();
+
+      log("creating outgoing socket ssl");
+
+      auto method = TLS_client_method();
+      auto context = SSL_CTX_new(method);
+      auto ssl = SSL_new(context);
+
+      if (!ssl)
+        throw exception("unable to create outgoing socket ssl");
+
+      auto i = SSL_set_fd(ssl, id);
+
+      if (i == 0)
+        throw exception("unable to set outgoing ssl id");
+
+      log("outgoing socket id set to %i", id);
+
+      return ssl;
+    }
+
+    SSL* in(uint id, SSL_CTX* ctx) {
+      init();
+
+      log("creating incoming socket ssl");
+
+      auto ssl = SSL_new(ctx);
+
+      if (!ssl)
+        throw exception("unable to create incoming socket ssl");
+
+      log("socket id set to %i", id);
+
+      auto i = SSL_set_fd(ssl, id);
+
+      if (i == 0)
+        throw exception("unable to set incoming ssl id");
+
+      log("outgoing socket id set to %i", id);
+
+      return ssl;
+    }
   }
 
-  std::pair<SSL_CTX*, SSL*> wrapServer(uint id) {
-    init();
-
-    log("creating socket ssl server and method");
-
-    auto method = TLS_server_method();
-    auto context = SSL_CTX_new(method);
-    auto ssl = SSL_new(context);
-
-    if (!ssl)
-      throw exception("unable to create SSL");
-
-    log("server id set to %i", id);
-
-    SSL_set_fd(ssl, id);
-
-    return {
-      context,
-      ssl
-    };
-  }
-
-  SSL* wrapIncoming(uint id, SSL_CTX* ctx) {
-    init();
-
-    log("creating socket ssl client");
-
-    auto ssl = SSL_new(ctx);
-
-    if (!ssl)
-      throw exception("unable to create SSL");
-
-    log("socket id set to %i", id);
-
-    SSL_set_fd(ssl, id);
-
-    return ssl;
-  }
-
-  void loadPEMCert(SSL_CTX* &ctx, pstd::vstring cert, pstd::vstring privkey) {
-    log("assigning certificate and privkey");
-
-    pstd::log(cert);
+  void loadPEMCert(SSL_CTX* &ctx, pstd::vstring cert, pstd::vstring key) {
+    log("assigning certificate and key");
 
     auto i = SSL_CTX_use_certificate_file(ctx, &cert[0], SSL_FILETYPE_PEM);
     if (i != 1)
       throw exception("unable to use cert file");
 
-    i = SSL_CTX_use_PrivateKey_file(ctx, &privkey[0], SSL_FILETYPE_PEM);
+    i = SSL_CTX_use_PrivateKey_file(ctx, &key[0], SSL_FILETYPE_PEM);
 
     if (i != 1)
       throw exception("unable to use key file");
