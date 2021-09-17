@@ -115,8 +115,6 @@ namespace ssl {
       if (!ssl)
         throw exception("unable to create incoming socket ssl");
 
-      log("socket id set to %i", id);
-
       auto i = SSL_set_fd(ssl, id);
 
       if (i == 0)
